@@ -79,7 +79,7 @@ namespace CopyRecord
             _storageQueue.Failed += StorageQueueFailed;
             _pasteQueue = new PasteQueueSession();
 
-            Title = "CopyRecord 2026.8.24";
+            Title = "CopyRecord 2026.8.25";
             Icon = AppIcon.CreateBitmapImage();
             Width = 372;
             Height = 455;
@@ -128,7 +128,7 @@ namespace CopyRecord
             StackPanel pickerHeader = new StackPanel { Orientation = Orientation.Horizontal };
             TextBlock pickerTitle = new TextBlock
             {
-                Text = "CopyRecord 2026.8.24",
+                Text = "CopyRecord 2026.8.25",
                 Foreground = Brush("#FF202020"),
                 FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,

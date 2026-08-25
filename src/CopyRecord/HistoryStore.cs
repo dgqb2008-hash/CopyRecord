@@ -262,7 +262,19 @@ namespace CopyRecord
             if (filter == ContentTypeFilterMode.Code) return items.Where(IsCodeText).ToList();
             if (filter == ContentTypeFilterMode.Image) return items.Where(item => item != null && (item.IsImage || IsImageFileList(item))).ToList();
             if (filter == ContentTypeFilterMode.Files) return items.Where(item => item != null && !IsImageFileList(item)).ToList();
+            if (filter == ContentTypeFilterMode.Text) return items.Where(item => item != null && !IsLinkText(item)).ToList();
             return items;
+        }
+
+        private static bool IsLinkText(ClipboardItem item)
+        {
+            if (item == null) return false;
+            string text = item.Text;
+            if (string.IsNullOrEmpty(text)) return false;
+            return text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase) ||
+                text.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsImageFileList(ClipboardItem item)
