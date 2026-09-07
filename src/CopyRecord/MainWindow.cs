@@ -42,6 +42,7 @@ namespace CopyRecord
         private readonly Grid _resultsHost;
         private readonly Border _scrollThumb;
         private readonly DispatcherTimer _captureTimer;
+        private readonly DispatcherTimer _geometrySaveTimer;
         private readonly System.Windows.Forms.NotifyIcon _tray;
         private readonly Button _invalidFilterButton;
         private readonly Button _clearButton;
@@ -69,6 +70,7 @@ namespace CopyRecord
         private bool _isScrollThumbDragging;
         private double _scrollDragStartY;
         private double _scrollDragStartOffset;
+        private bool _suppressGeometrySave;
 
         internal MainWindow()
         {
@@ -81,12 +83,12 @@ namespace CopyRecord
 
             Title = "CopyRecord 2026.8.25";
             Icon = AppIcon.CreateBitmapImage();
-            Width = 372;
-            Height = 455;
             MinWidth = 350;
             MinHeight = 430;
+            Width = Math.Max(MinWidth, _settings.PanelWidth > 0 ? _settings.PanelWidth : 372);
+            Height = Math.Max(MinHeight, _settings.PanelHeight > 0 ? _settings.PanelHeight : 455);
             WindowStyle = WindowStyle.None;
-            ResizeMode = ResizeMode.NoResize;
+            ResizeMode = ResizeMode.CanResize;
             AllowsTransparency = false;
             Background = Brush("#FFF7F7F7");
             ShowInTaskbar = false;
@@ -128,7 +130,7 @@ namespace CopyRecord
             StackPanel pickerHeader = new StackPanel { Orientation = Orientation.Horizontal };
             TextBlock pickerTitle = new TextBlock
             {
-                Text = "CopyRecord 2026.8.25",
+                Text = "CopyRecord 2026.9.7",
                 Foreground = Brush("#FF202020"),
                 FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -428,13 +430,17 @@ namespace CopyRecord
             _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(70) };
             _captureTimer.Tick += CaptureTimerTick;
 
+            _geometrySaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
+            _geometrySaveTimer.Tick += delegate { _geometrySaveTimer.Stop(); PersistPanelGeometry(); };
+
             _tray = CreateTrayIcon();
 
             PreviewKeyDown += WindowPreviewKeyDown;
             MouseMove += WindowDragMouseMove;
             MouseLeftButtonUp += WindowDragMouseUp;
             Closing += WindowClosing;
-            SourceInitialized += delegate { EnableAcrylicBackground(); };
+            SourceInitialized += delegate { EnableAcrylicBackground(); StripResizeFrame(); };
+            SizeChanged += PanelSizeChanged;
         }
 
         internal void StartBackground()
@@ -485,6 +491,7 @@ namespace CopyRecord
         internal void ExitApplication()
         {
             _isExiting = true;
+            PersistPanelGeometry();
             if (_handle != IntPtr.Zero)
             {
                 NativeMethods.RemoveClipboardFormatListener(_handle);
@@ -500,7 +507,36 @@ namespace CopyRecord
 
         private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
-            if (message == NativeMethods.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
+            if (message == NativeMethods.WM_NCHITTEST && IsVisible)
+            {
+                long param = lParam.ToInt64();
+                int cursorX = unchecked((short)(param & 0xFFFF));
+                int cursorY = unchecked((short)((param >> 16) & 0xFFFF));
+                NativeMethods.RECT rect;
+                if (NativeMethods.GetWindowRect(hwnd, out rect))
+                {
+                    const int edge = 6;
+                    bool onLeft = cursorX >= rect.Left && cursorX <= rect.Left + edge;
+                    bool onRight = cursorX >= rect.Right - edge && cursorX <= rect.Right;
+                    bool onTop = cursorY >= rect.Top && cursorY <= rect.Top + edge;
+                    bool onBottom = cursorY >= rect.Bottom - edge && cursorY <= rect.Bottom;
+                    int hitCode = 0;
+                    if (onTop && onLeft) hitCode = NativeMethods.HTTOPLEFT;
+                    else if (onTop && onRight) hitCode = NativeMethods.HTTOPRIGHT;
+                    else if (onBottom && onLeft) hitCode = NativeMethods.HTBOTTOMLEFT;
+                    else if (onBottom && onRight) hitCode = NativeMethods.HTBOTTOMRIGHT;
+                    else if (onLeft) hitCode = NativeMethods.HTLEFT;
+                    else if (onRight) hitCode = NativeMethods.HTRIGHT;
+                    else if (onTop) hitCode = NativeMethods.HTTOP;
+                    else if (onBottom) hitCode = NativeMethods.HTBOTTOM;
+                    if (hitCode != 0)
+                    {
+                        handled = true;
+                        return new IntPtr(hitCode);
+                    }
+                }
+            }
+            else if (message == NativeMethods.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
             {
                 if (_childDialogDepth > 0)
                 {
@@ -1118,6 +1154,34 @@ namespace CopyRecord
             }
         }
 
+        private void PanelSizeChanged(object sender, SizeChangedEventArgs eventArgs)
+        {
+            if (_suppressGeometrySave || !IsVisible) return;
+            if (eventArgs.NewSize.Width < 1 || eventArgs.NewSize.Height < 1) return;
+            double w = Math.Round(eventArgs.NewSize.Width);
+            double h = Math.Round(eventArgs.NewSize.Height);
+            if (Math.Abs(_settings.PanelWidth - w) < 0.5 && Math.Abs(_settings.PanelHeight - h) < 0.5) return;
+            _geometrySaveTimer.Stop();
+            _geometrySaveTimer.Start();
+        }
+
+        private void PersistPanelGeometry()
+        {
+            try
+            {
+                double width = ActualWidth > 0 ? ActualWidth : Width;
+                double height = ActualHeight > 0 ? ActualHeight : Height;
+                if (width < MinWidth || height < MinHeight) return;
+                double w = Math.Round(width);
+                double h = Math.Round(height);
+                if (Math.Abs(_settings.PanelWidth - w) < 0.5 && Math.Abs(_settings.PanelHeight - h) < 0.5) return;
+                _settings.PanelWidth = w;
+                _settings.PanelHeight = h;
+                _settingsStore.Save(_settings);
+            }
+            catch { }
+        }
+
         private void PositionNearCursor()
         {
             System.Drawing.Point cursor = System.Windows.Forms.Cursor.Position;
@@ -1131,10 +1195,35 @@ namespace CopyRecord
             int windowWidth = rect.Right - rect.Left;
             int windowHeight = rect.Bottom - rect.Top;
             const int edgeGap = 12;
+            int maxAreaWidth = area.Width - edgeGap * 2;
+            int maxAreaHeight = area.Height - edgeGap * 2;
+            bool resized = false;
+            if (maxAreaWidth > 0 && windowWidth > maxAreaWidth)
+            {
+                windowWidth = maxAreaWidth;
+                resized = true;
+            }
+            if (maxAreaHeight > 0 && windowHeight > maxAreaHeight)
+            {
+                windowHeight = maxAreaHeight;
+                resized = true;
+            }
             int targetX = area.Right - windowWidth - edgeGap;
             int targetY = area.Bottom - windowHeight - edgeGap;
-            NativeMethods.SetWindowPos(window, IntPtr.Zero, targetX, targetY, 0, 0,
-                NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            if (targetX < area.Left) targetX = area.Left;
+            if (targetY < area.Top) targetY = area.Top;
+            uint flags = NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE;
+            if (!resized) flags |= NativeMethods.SWP_NOSIZE;
+            _suppressGeometrySave = true;
+            try
+            {
+                NativeMethods.SetWindowPos(window, IntPtr.Zero, targetX, targetY,
+                    windowWidth, windowHeight, flags);
+            }
+            finally
+            {
+                _suppressGeometrySave = false;
+            }
         }
 
         private void EnableAcrylicBackground()
@@ -1153,6 +1242,19 @@ namespace CopyRecord
             int backdrop = NativeMethods.DWMSBT_NONE;
             NativeMethods.DwmSetWindowAttribute(window,
                 NativeMethods.DWMWA_SYSTEMBACKDROP_TYPE, ref backdrop, sizeof(int));
+        }
+
+        private void StripResizeFrame()
+        {
+            IntPtr window = new WindowInteropHelper(this).Handle;
+            if (window == IntPtr.Zero) return;
+
+            int style = NativeMethods.GetWindowLong(window, NativeMethods.GWL_STYLE);
+            style = (int)((uint)style & ~(NativeMethods.WS_THICKFRAME | NativeMethods.WS_SYSMENU |
+                NativeMethods.WS_MINIMIZEBOX | NativeMethods.WS_MAXIMIZEBOX));
+            NativeMethods.SetWindowLong(window, NativeMethods.GWL_STYLE, style);
+            NativeMethods.SetWindowPos(window, IntPtr.Zero, 0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_FRAMECHANGED);
         }
 
         private void ResultsScrollChanged(object sender, ScrollChangedEventArgs eventArgs)
@@ -1514,11 +1616,12 @@ namespace CopyRecord
             if (item.IsImage)
             {
                 Grid imageCard = new Grid { Height = 44 };
-                imageCard.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                imageCard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                imageCard.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // 缩略图
+                imageCard.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });                       // 时间
+                imageCard.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 操作按钮
 
                 double aspect = item.ImageHeight > 0 ? (double)item.ImageWidth / item.ImageHeight : 1.0;
-                double thumbnailWidth = Math.Max(38, Math.Min(280, 38 * aspect));
+                double thumbnailWidth = Math.Max(38, Math.Min(120, 38 * aspect));
 
                 Border imageFrame = new Border
                 {
@@ -1603,7 +1706,20 @@ namespace CopyRecord
                 imageActions.Children.Add(moreButton);
                 imageActions.Children.Add(imageDelete);
                 imageActions.Children.Add(pinButton);
-                Grid.SetColumn(imageActions, 1);
+                TextBlock imageTimeText = new TextBlock
+                {
+                    Text = item.CreatedAtText,
+                    FontSize = 11,
+                    Foreground = Brush("#FF6E6E6E"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 10, 0),
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    ToolTip = item.Detail
+                };
+                Grid.SetColumn(imageTimeText, 1);
+                imageCard.Children.Add(imageTimeText);
+
+                Grid.SetColumn(imageActions, 2);
                 imageCard.Children.Add(imageActions);
 
                 return new ListBoxItem

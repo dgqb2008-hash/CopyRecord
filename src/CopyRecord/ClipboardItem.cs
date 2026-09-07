@@ -176,18 +176,24 @@ namespace CopyRecord
             get { return Preview; }
         }
 
+        public string CreatedAtText
+        {
+            get
+            {
+                TimeSpan age = DateTime.Now - CreatedAt;
+                if (age.TotalMinutes < 1) return "刚刚";
+                if (age.TotalHours < 1) return ((int)age.TotalMinutes).ToString() + " 分钟前";
+                if (age.TotalDays < 1) return ((int)age.TotalHours).ToString() + " 小时前";
+                return CreatedAt.ToString("MM-dd HH:mm");
+            }
+        }
+
         public string Detail
         {
             get
             {
                 string app = string.IsNullOrWhiteSpace(SourceApp) ? "未知应用" : SourceApp;
-                TimeSpan age = DateTime.Now - CreatedAt;
-                string time;
-                if (age.TotalMinutes < 1) time = "刚刚";
-                else if (age.TotalHours < 1) time = ((int)age.TotalMinutes).ToString() + " 分钟前";
-                else if (age.TotalDays < 1) time = ((int)age.TotalHours).ToString() + " 小时前";
-                else time = CreatedAt.ToString("MM-dd HH:mm");
-                return app + "  ·  " + time;
+                return app + "  ·  " + CreatedAtText;
             }
         }
     }

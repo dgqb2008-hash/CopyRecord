@@ -17,6 +17,8 @@ namespace CopyRecord
         [DataMember] public bool IgnoreSensitiveText { get; set; }
         [DataMember] public string ExcludedApplications { get; set; }
         [DataMember] public bool FirstRunCompleted { get; set; }
+        [DataMember] public double PanelWidth { get; set; }
+        [DataMember] public double PanelHeight { get; set; }
 
         internal static AppSettings Defaults()
         {
@@ -43,6 +45,10 @@ namespace CopyRecord
             ImageRetentionDays = Math.Max(0, Math.Min(3650, ImageRetentionDays));
             ImageMaximumMegabytes = Math.Max(10, Math.Min(10240, ImageMaximumMegabytes));
             ExcludedApplications = ExcludedApplications == null ? string.Empty : ExcludedApplications.Trim();
+            if (double.IsNaN(PanelWidth) || double.IsInfinity(PanelWidth) || PanelWidth < 0 || PanelWidth > 4000)
+                PanelWidth = 0;
+            if (double.IsNaN(PanelHeight) || double.IsInfinity(PanelHeight) || PanelHeight < 0 || PanelHeight > 4000)
+                PanelHeight = 0;
         }
     }
 

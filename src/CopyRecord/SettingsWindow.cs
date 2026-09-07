@@ -16,6 +16,7 @@ namespace CopyRecord
         private readonly TextBox _maximumMegabytes;
         private readonly CheckBox _ignoreSensitiveText;
         private readonly TextBox _excludedApplications;
+        private readonly AppSettings _sourceSettings;
 
         internal AppSettings Result { get; private set; }
 
@@ -24,6 +25,7 @@ namespace CopyRecord
             Title = "CopyRecord 设置";
             Width = 480;
             Height = 588;
+            _sourceSettings = settings;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             ResizeMode = ResizeMode.NoResize;
             Background = new SolidColorBrush(Color.FromRgb(248, 248, 248));
@@ -150,7 +152,9 @@ namespace CopyRecord
                 ImageMaximumMegabytes = megabytes,
                 IgnoreSensitiveText = _ignoreSensitiveText.IsChecked == true,
                 ExcludedApplications = _excludedApplications.Text,
-                FirstRunCompleted = true
+                FirstRunCompleted = true,
+                PanelWidth = _sourceSettings.PanelWidth,
+                PanelHeight = _sourceSettings.PanelHeight
             };
             Result.Normalize();
             DialogResult = true;

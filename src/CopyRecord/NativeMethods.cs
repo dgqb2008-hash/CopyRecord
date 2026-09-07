@@ -18,7 +18,24 @@ namespace CopyRecord
         internal const byte VK_V = 0x56;
         internal const int WM_NCLBUTTONDOWN = 0x00A1;
         internal const int HTCAPTION = 2;
+        internal const int WM_NCHITTEST = 0x0084;
+        internal const int GWL_STYLE = -16;
+        internal const uint WS_THICKFRAME = 0x00040000;
+        internal const uint WS_SYSMENU = 0x00080000;
+        internal const uint WS_MINIMIZEBOX = 0x00020000;
+        internal const uint WS_MAXIMIZEBOX = 0x00010000;
+        internal const uint SWP_NOMOVE = 0x0002;
         internal const uint SWP_NOSIZE = 0x0001;
+        internal const uint SWP_FRAMECHANGED = 0x0020;
+        internal const int HTCLIENT = 1;
+        internal const int HTLEFT = 10;
+        internal const int HTRIGHT = 11;
+        internal const int HTTOP = 12;
+        internal const int HTTOPLEFT = 13;
+        internal const int HTTOPRIGHT = 14;
+        internal const int HTBOTTOM = 15;
+        internal const int HTBOTTOMLEFT = 16;
+        internal const int HTBOTTOMRIGHT = 17;
         internal const uint SWP_NOZORDER = 0x0004;
         internal const uint SWP_NOACTIVATE = 0x0010;
         internal const int WCA_ACCENT_POLICY = 19;
@@ -117,6 +134,12 @@ namespace CopyRecord
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+        internal static extern int GetWindowLong(IntPtr hwnd, int nIndex);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+        internal static extern int SetWindowLong(IntPtr hwnd, int nIndex, int dwNewLong);
 
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
